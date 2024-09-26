@@ -1,0 +1,1293 @@
+---Art gallery db
+---ETL
+
+
+--staging table for artwork
+CREATE TABLE staging_tb_art_work(
+	id INT,
+	accession_number VARCHAR (256), 
+	artist VARCHAR (256) , 
+	artistRole VARCHAR (256) , 
+	artistId INT,
+	title VARCHAR (2048) , 
+	dateText VARCHAR (256) , 
+	medium VARCHAR (256) , 
+	creditLine VARCHAR (2048) , 
+	year VARCHAR (256) , 
+	acquisitionYear VARCHAR (256) , 
+	dimensions VARCHAR(256) , 
+	width VARCHAR (256) , 
+	height VARCHAR (256) , 
+	depth VARCHAR (256) , 
+	units VARCHAR (256) , 
+	inscription VARCHAR (625) , 
+	thumbnatlCopyright VARCHAR (2048) , 
+	thumbnailUr VARCHAR (2048) , 
+	url VARCHAR (2048)
+);	
+	
+---LET'S SEE WHAT WE'VE GOT
+SELECT * FROM staging_tb_art_work;
+
+---checking for null values
+SELECT COUNT (*) AS null_count
+FROM staging_tb_art_work
+WHERE
+(
+	artist IS NULL OR 
+	title IS NULL OR 
+	medium IS NULL OR 
+	year IS NULL
+);
+
+--11724 is NULL out of 69202
+--deleting the rows that have NULL values bes I have enou
+DELETE FROM staging_tb_art_work
+WHERE
+(
+	artist IS NULL OR 
+	title IS NULL OR 
+	medium IS NULL OR 
+	year IS NULL
+);
+
+---checking for duplicates
+SELECT title, artist, year, COUNT(*) AS duplicate_count
+FROM staging_tb_art_work
+GROUP BY title, artist, year
+HAVING COUNT (*) > 1;
+
+----- remove duplicates
+DELETE FROM staging_tb_art_work
+WHERE (title, artist, year) IN (
+SELECT title, artist, year FROM staging_tb_art_work
+GROUP BY title, artist, year
+HAVING COUNT (*) > 1
+	);
+
+--changing necessary datatype
+ALTER TABLE staging_tb_art_work
+ALTER COLUMN year TYPE INT
+USING CASE WHEN Year ~ '^\d+$' THEN year::INT ELSE NULL END;
+
+ALTER TABLE staging_tb_art_work
+ALTER COLUMN year TYPE DATE USING TO_DATE (year::TEXT, 'YYYY');
+
+---now data is ready to load
+
+---STAGING TABLE ARTIST
+CREATE TABLE staging_table_artist(
+	id INT,
+	name VARCHAR (625) , 
+	gender VARCHAR (10) ,
+	dates VARCHAR (256) , 
+	yearofBirth VARCHAR (256) , 
+	yearfDeath VARCHAR (256) , 
+	placeofBirth VARCHAR (625) ,
+	place0fDeath VARCHAR (625) ,
+	url VARCHAR (2048)
+);
+
+---LET'S SEE WHAT WE'VE GOT 
+
+SELECT * FROM staging_table_artist;
+
+---checking for null values
+SELECT COUNT (*) AS null_count
+FROM staging_table_artist
+WHERE
+(
+	name IS NULL OR
+	gender IS NULL OR
+	yearofBirth IS NULL OR
+	placeofBirth IS NULL
+	);
+
+---for NULL columns i'll replace them with unknown
+UPDATE staging_table_artist
+SET 
+	name = COALESCE (name,'unknown'),
+	gender = COALESCE (gender, 'unknown'),
+	yearofBirth = COALESCE(yearofBirth,'unknown'),
+	placeofBirth = COALESCE (placeofBirth,'unknown')
+WHERE 
+	name IS NULL OR
+	gender IS NULL OR 
+	yearofBirth IS NULL OR 
+	placeofBirth IS NULL;
+	
+---data is ready for load
+
+---STAGING TABLE GALLERY EXHIBITION
+CREATE TABLE staging_table_exhibition (
+	ID_no INT,
+	Start_Date VARCHAR (256) ,
+	Start_Date_Month VARCHAR (256) ,
+	Start_Date_Day VARCHAR (256) ,
+	Start_Date_Year VARCHAR (256) ,
+	End_Date VARCHAR (256) ,
+	End_Date_Month VARCHAR (256) ,
+	End_Date_Day VARCHAR (256) ,
+	End_Date_Year VARCHAR (256) ,
+	Exhibition_Type VARCHAR (625) ,
+	Title VARCHAR (1024) ,
+	Gallery_Site VARCHAR (10) ,
+	Gallery_Terminal VARCHAR (10),
+	Gallery_Area VARCHAR (10) , Gallery_Level VARCHAR (10) ,
+	Gallery_Name VARCHAR (256)
+);
+--LET'S SEE WHAT WE'VE GOT
+SELECT * FROM staging_table_exhibition;
+
+SELECT COUNT (*) AS null_count
+FROM staging_table_exhibition
+WHERE(
+	start_date IS NULL OR
+	end_date IS NULL OR
+	title IS NULL
+);
+
+DELETE
+FROM staging_table_exhibition
+WHERE
+( 
+	start_date IS NULL OR
+	end_date IS NULL OR
+	title IS NULL
+);
+
+--DUPLICATES
+SELECT START_DATE, END_DATE, TITLE, COUNT (*) AS duplicate_count
+FROM staging_table_exhibition
+GROUP BY START_DATE, END_DATE, TITLE
+HAVING COUNT (*) > 1;
+
+DELETE FROM staging_table_exhibition
+WHERE (START_DATE, END_DATE, TITLE) IN (
+	SELECT START_DATE, END_DATE, TITLE
+	FROM staging_table_exhibition
+	GROUP BY START_DATE, END_DATE, TITLE
+	HAVING COUNT (*) > 1
+);
+--DATA IS READY TO LOAD
+
+---STAGING TABLE EVENTS
+CREATE TABLE staging_tb_events( 
+	service_type VARCHAR (625) , 
+	programm VARCHAR (625) , 
+	ev_title VARCHAR (625) , 
+	ev_desc VARCHAR (2048) , 
+	site_nm VARCHAR (625) , 
+	month_dt VARCHAR (625) , 
+	dt_time VARCHAR (625) ,
+	audience_type VARCHAR (625) ,
+	ticket_pr VARCHAR (625) , 
+	booking_inf VARCHAR (625)
+);
+
+--LET'S SEE WHAT WE'VE GOT
+SELECT * FROM staging_tb_events;
+
+SELECT *
+FROM staging_tb_events
+WHERE
+(
+	programm IS NULL OR 
+	ev_title IS NULL OR 
+	ev_desc IS NULL OR 
+	dt_time IS NULL
+);
+
+UPDATE staging_tb_events
+SET
+	programm = COALESCE (programm,'unknown'),
+	ev_title = COALESCE(ev_title,'unknown'),
+	ev_desc = COALESCE (ev_desc,'unknown'),
+ 	dt_time = COALESCE(dt_time,'unknown')
+WHERE 
+	programm IS NULL OR
+	ev_title IS NULL OR 
+	ev_desc IS NULL OR 
+	dt_time IS NULL;
+
+
+CREATE TABLE stg_tb_museum( 
+	m_id VARCHAR(625) , 
+	DISCIPL VARCHAR(625) ,
+	EIN VARCHAR(625) ,
+	CO_LOC_RES VARCHAR(256) ,
+	NTEEC VARCHAR(625) ,
+	DUNS VARCHAR(625) , 
+	NAICS VARCHAR(625) ,
+	COMMONNAME VARCHAR(625) , 
+	LEGALNAME VARCHAR(625) , 
+	ALTNAME VARCHAR(625) , 
+	AKADBA VARCHAR(625) , 
+	ADSTREET VARCHAR(625), 
+	ADCITY VARCHAR(625) ,
+	ADSTATE VARCHAR(625) , 
+	ADZIP VARCHAR(625) , 
+	ADZIP5 VARCHAR(625) , 
+	PHSTREET VARCHAR(625) , 
+	PHCITY VARCHAR(625) , 
+	PHSTATE VARCHAR(625) , 
+	PHZIP VARCHAR(256) ,
+	PHZIP5 VARCHAR(256) ,
+	PHONE VARCHAR(256) ,
+	WEBURL VARCHAR(625),
+	IRS_NAME15 VARCHAR(625) , 
+	TAXPER15 VARCHAR(625) , 
+	INCOMECD15 VARCHAR(625) , 
+	INCOME15 VARCHAR(625) , 
+	REVENUE15 VARCHAR(625) , 
+	IRS_STREET15 VARCHAR(625) , 
+	IRS_CITY15 VARCHAR(625) , 
+	IRS_STATE15 VARCHAR(10) , 
+	IRS_ZIP15 VARCHAR(256) , 
+	RULEDATE15 VARCHAR(256),
+	IPEDS VARCHAR(625) , 
+	INSTNAME VARCHAR(625) , 
+	INSTCITY VARCHAR(625), 
+	INSTST VARCHAR(625) , 
+	LONGITUDE VARCHAR(625) , 
+	LATITUDE VARCHAR(625), 
+	AAMREG VARCHAR(625) , 
+	BEAREG VARCHAR(625),
+	LOCALE4 VARCHAR(625) , 
+	FIPSST VARCHAR(625) , 
+	FIPSCO VARCHAR(625) , 
+	GSTREET VARCHAR(625) , 
+	GCITY VARCHAR(625) , 
+	GSTATE VARCHAR(256) , 
+	GZIP VARCHAR(625) ,
+	GZIPS VARCHAR(625) ,
+	BMF15_F VARCHAR(625) , 
+	IMLSAD_F VARCHAR(625) , 
+	PFND_F VARCHAR(625) , 
+	FCT3P_F VARCHAR(625) , 
+	USER_F VARCHAR(625) , 
+	UNI_F VARCHAR(625) , 
+	OTHER_F VARCHAR(625) ,
+	SOURCE VARCHAR(256)
+);
+
+SELECT * FROM stg_tb_museum;
+
+SELECT LEGALNAME, ADSTREET, ADCITY, ADSTATE, ADZIP, PHONE FROM stg_tb_museum
+WHERE
+	LEGALNAME IS NULL OR 
+	ADSTREET IS NULL OR 
+	ADCITY IS NULL OR 
+	ADSTATE IS NULL OR 
+	ADZIP IS NULL OR 
+	PHONE IS NULL
+	
+--THERE'S NO NULLS
+
+UPDATE stg_tb_museum
+SET
+	LEGALNAME = NULLIF(LEGALNAME, ' '),
+	ADSTREET = NULLIF(ADSTREET, ' '),
+	ADCITY = NULLIF(ADCITY, ' '),
+	ADSTATE = NULLIF(ADSTATE, ' '),
+	ADZIP = NULLIF(ADZIP, ' '),
+	PHONE = NULLIF(PHONE, ' ')
+WHERE
+	LEGALNAME = ' ' OR
+	ADSTREET = ' ' OR
+	ADCITY = ' ' OR
+	ADSTATE = ' ' OR
+	ADZIP = ' ' OR
+	PHONE = ' ';
+
+
+DELETE FROM stg_tb_museum
+WHERE (LEGALNAME, ADSTREET, ADCITY, ADSTATE, ADZIP, PHONE) IN 
+(
+SELECT LEGALNAME, ADSTREET, ADCITY, ADSTATE,ADZIP, PHONE
+FROM stg_tb_museum
+GROUP BY LEGALNAME, ADSTREET, ADCITY, ADSTATE, ADZIP, PHONE
+HAVING COUNT(*) > 1
+);
+
+CREATE TABLE stg_empl_tb (
+    last_nm VARCHAR(255),
+    first_nm VARCHAR(255),
+    position_em VARCHAR(255),
+    salary VARCHAR(255),
+    hired VARCHAR(255)
+);
+
+
+---IMPLEMENTING NORMALIZED DATABASE SYSTEM TABLES
+
+CREATE TABLE address (
+    address_id SERIAL PRIMARY KEY,
+    city VARCHAR(256) NOT NULL,
+    street_number INT,
+    street_name VARCHAR(256),
+    apartment_number INT,
+    state VARCHAR(256),
+    zipcode VARCHAR(255)
+);
+
+CREATE TABLE gallery_type (
+    gallery_type_id INT NOT NULL,
+    type_name VARCHAR(256),
+    description VARCHAR(256),
+    PRIMARY KEY (gallery_type_id)
+);
+
+CREATE TABLE gallery (
+    gallery_id INT NOT NULL,
+    name VARCHAR(256),
+    address_id INT,
+    gallery_type_id INT,
+    capacity INT,
+    phone VARCHAR(24),
+    email VARCHAR(40),
+    PRIMARY KEY (gallery_id),
+    FOREIGN KEY (address_id) REFERENCES address(address_id),
+    FOREIGN KEY (gallery_type_id) REFERENCES gallery_type(gallery_type_id)
+);
+
+CREATE TABLE nationality (
+    nationality_id INT NOT NULL,
+    nationality VARCHAR(40),
+    PRIMARY KEY (nationality_id)
+);
+
+CREATE TABLE Person (
+    person_id INT NOT NULL,
+    first_name VARCHAR(255),
+    last_name VARCHAR(255),
+    dob VARCHAR(255),
+    phone VARCHAR(255),
+    email VARCHAR(230),
+    nationality_id INT,
+	PRIMARY KEY (person_id),
+    FOREIGN KEY (nationality_id) REFERENCES nationality (nationality_id)
+);
+
+CREATE TABLE Artist (
+    artist_id INT NOT NULL,
+    person_id INT,
+    PRIMARY KEY (artist_id),
+    FOREIGN KEY (person_id) REFERENCES Person (person_id)
+);
+
+CREATE TABLE art_type (
+    art_type_id INT NOT NULL,
+    art_type_name VARCHAR(256),
+    PRIMARY KEY (art_type_id)
+);
+
+CREATE TABLE art_work (
+    art_work_id INT NOT NULL,
+    art_type_id INT,
+    artist_id INT,
+    gallery_id INT,
+    title VARCHAR(256),
+    yearofart DATE,
+    price DECIMAL(10,2),
+    availability BOOLEAN,
+    PRIMARY KEY (art_work_id),
+    FOREIGN KEY (art_type_id) REFERENCES art_type (art_type_id),
+    FOREIGN KEY (artist_id) REFERENCES Artist (artist_id),
+    FOREIGN KEY (gallery_id) REFERENCES gallery (gallery_id)
+);
+
+CREATE TABLE position_tb (
+    position_id INT NOT NULL,
+    position_name VARCHAR(256),
+    PRIMARY KEY (position_id)
+);
+
+CREATE TABLE employee_tb (
+    employee_id INT NOT NULL,
+    person_id INT,
+    position_id INT,
+    gallery_id INT,
+    hire_date DATE,
+    salary_amount DECIMAL(10,5),
+    applied_bonuses INT,
+    PRIMARY KEY (employee_id),
+    FOREIGN KEY (person_id) REFERENCES Person (person_id),
+    FOREIGN KEY (position_id) REFERENCES position_tb (position_id),
+    FOREIGN KEY (gallery_id) REFERENCES gallery (gallery_id)
+);
+
+
+CREATE TABLE exhibition (
+    exhibition_id INT NOT NULL,
+    exhibition_name VARCHAR(256),
+    gallery_id INT,
+    start_date DATE,
+    end_date DATE,
+    is_free BOOLEAN,
+    ticket_cost DECIMAL(10,5),
+    PRIMARY KEY (exhibition_id),
+    FOREIGN KEY (gallery_id) REFERENCES gallery (gallery_id)
+);
+CREATE TABLE artwork_position (
+    artwork_position_id INT NOT NULL,
+    position_name VARCHAR(225),
+    PRIMARY KEY (artwork_position_id)
+);
+
+CREATE TABLE exhibition_artwork (
+    exhibition_artwork_id INT NOT NULL,
+    art_work_id INT,
+    exhibition_id INT,
+    artwork_position_id INT,
+    PRIMARY KEY (exhibition_artwork_id),
+    FOREIGN KEY (art_work_id) REFERENCES art_work (art_work_id),
+    FOREIGN KEY (exhibition_id) REFERENCES exhibition (exhibition_id),
+    FOREIGN KEY (artwork_position_id) REFERENCES artwork_position (artwork_position_id)
+);
+
+CREATE TABLE event_type (
+    event_type_id INT NOT NULL,
+    event_type_name VARCHAR(256),
+    PRIMARY KEY (event_type_id)
+);
+
+CREATE TABLE event_tb (
+    event_tb_id INT NOT NULL,
+    gallery_id INT,
+    event_name VARCHAR(625),
+    description VARCHAR(2048),
+    event_type_id INT,
+    event_date VARCHAR(255),
+    PRIMARY KEY (event_tb_id),
+    FOREIGN KEY (gallery_id) REFERENCES gallery (gallery_id),
+    FOREIGN KEY (event_type_id) REFERENCES event_type (event_type_id)
+);
+
+CREATE TABLE responsible_staff (
+    responsible_staff_id INT NOT NULL,
+    event_tb_id INT,
+    employee_id INT,
+    PRIMARY KEY (responsible_staff_id),
+    FOREIGN KEY (event_tb_id) REFERENCES event_tb(event_tb_id),
+    FOREIGN KEY (employee_id) REFERENCES employee_tb(employee_id)
+);
+
+CREATE TABLE customer (
+    customer_id INT NOT NULL,
+    person_id INT,
+    address_id INT,
+    PRIMARY KEY (customer_id),
+    FOREIGN KEY (person_id) REFERENCES person(person_id),
+    FOREIGN KEY (address_id) REFERENCES address(address_id)
+);
+
+CREATE TABLE sales (
+    sales_id INT NOT NULL,
+    customer_id INT,
+    art_work_id INT,
+    sale_date DATE,
+    price_sl DECIMAL(10,5),
+    total_price DECIMAL(10,5),
+    payment_method_id INT,
+    PRIMARY KEY (sales_id),
+    FOREIGN KEY (customer_id) REFERENCES customer (customer_id),
+    FOREIGN KEY (art_work_id) REFERENCES art_work (art_work_id),
+    FOREIGN KEY (payment_method_id) REFERENCES payment_method (payment_method_id)
+);
+
+CREATE TABLE payment_method (
+    payment_method_id INT NOT NULL,
+    payment_method_name VARCHAR(256),
+    PRIMARY KEY (payment_method_id)
+);
+
+CREATE TABLE transaction (
+    transaction_id INT NOT NULL,
+    sales_id INT,
+    transaction_date DATE,
+    amount DECIMAL(10,5),
+    PRIMARY KEY (transaction_id),
+    FOREIGN KEY (sales_id) REFERENCES sales (sales_id)
+);
+
+CREATE TABLE shipping (
+    shipping_id INT NOT NULL,
+    sales_id INT,
+    shipping_date DATE,
+    shipping_status_id INT,
+    PRIMARY KEY (shipping_id),
+    FOREIGN KEY (shipping_status_id) REFERENCES shipping_status (shipping_status_id)
+);
+
+CREATE TABLE shipping_status (
+    shipping_status_id INT NOT NULL,
+    shipping_status VARCHAR(256),
+    PRIMARY KEY (shipping_status_id)
+);
+
+---DONE WITH CREATING DATABASE TABLES
+--NEXT IS TRANSFORMING AND LOADING STAGE
+
+CREATE TEMP TABLE temp_address AS
+SELECT
+    CASE
+        WHEN ADSTREET ~ '^\d+\s' THEN regexp_replace(ADSTREET, '(\d+)\s.*', '\1')::BIGINT
+        ELSE NULL
+    END AS street_number,
+    CASE
+        WHEN ADSTREET ~ '\D' THEN TRIM(regexp_replace(ADSTREET, '^d\+\s',''))
+        ELSE NULL
+    END AS street_name,
+    ADCITY AS city,
+    ADSTATE AS state,
+    ADZIP AS zipcode
+FROM stg_tb_museum;
+
+INSERT INTO address (street_number, street_name, apartment_number, city, state, zipcode)
+SELECT street_number,
+       street_name,
+       NULL AS apartment_number,
+       city,
+       state,
+       zipcode
+FROM temp_address;
+
+-- Drop the temporary table temp_address
+DROP TABLE temp_address;
+
+SELECT * FROM address;
+
+-- Insert data manually into the gallery_type table
+INSERT INTO gallery_type (gallery_type_id, type_name, description)
+VALUES
+    (1, 'Paintings', 'Gallery specializing in paintings'),
+    (2, 'Sculptures', 'Gallery specializing in sculptures'),
+    (3, 'Photography', 'Gallery specializing in photography'),
+    (4, 'Mixed Media', 'Gallery specializing in mixed media artworks'),
+    (5, 'Contemporary Art', 'Gallery focusing on contemporary art pieces'),
+    (6, 'Abstract Art', 'Gallery showcasing abstract art creations');
+
+SELECT * FROM gallery_type;
+
+--loading into gallery table
+CREATE SEQUENCE gallery_id_sequence
+START WITH 1
+INCREMENT BY 1
+NO MINVALUE
+NO MAXVALUE
+CACHE 1;
+
+ALTER TABLE gallery
+ALTER COLUMN gallery_id SET DEFAULT NEXTVAL('gallery_id_sequence');
+
+INSERT INTO gallery (gallery_id, name, address_id, gallery_type_id, phone)
+SELECT
+    NEXTVAL('gallery_id_sequence'), -- Use NEXTVAL to generate gallery_id from the sequence
+    LEGALNAME AS name,
+    a.address_id,
+    (FLOOR(RANDOM() * 6) + 1) AS gallery_type_id, -- Randomly select a gallery_type_id between 1 and 6
+    stm.PHONE AS phone
+FROM stg_tb_museum stm
+LEFT JOIN address a ON CONCAT(a.street_number, ' ', a.street_name) = stm.ADSTREET;
+
+SELECT * FROM gallery;
+
+--nationality table
+
+CREATE SEQUENCE nationality_id_sequence
+START WITH 1
+INCREMENT BY 1
+NO MINVALUE
+NO MAXVALUE
+CACHE 1;
+
+-- Create a temporary table to store unique nationalities
+CREATE TEMP TABLE temp_nationalities AS
+SELECT DISTINCT
+    SPLIT_PART(placeofBirth, ',', 2) AS nationality
+FROM staging_table_artist
+WHERE placeofBirth IS NOT NULL
+
+UNION ALL
+
+SELECT 'unknown' AS nationality
+WHERE 'unknown' NOT IN (
+    SELECT DISTINCT SPLIT_PART(placeofBirth, ',', 2)
+    FROM staging_table_artist
+    WHERE placeofBirth IS NOT NULL
+);
+
+SELECT * FROM temp_nationalities;
+
+-- Insert data into the nationality table using the sequence
+INSERT INTO nationality (nationality_id, nationality)
+SELECT NEXTVAL('nationality_id_sequence'), nationality
+FROM temp_nationalities;
+
+SELECT * FROM nationality;
+
+---person table
+CREATE SEQUENCE person_id_sequence
+START WITH 1
+INCREMENT BY 1
+NO MINVALUE
+NO MAXVALUE
+CACHE 1;
+
+INSERT INTO person (person_id, first_name, last_name, dob, nationality_id, phone, email)
+SELECT
+    NEXTVAL('person_id_sequence'),
+    CASE
+        WHEN POSITION(',' IN sta.name) > 0 THEN SUBSTRING(sta.name FROM POSITION(',' IN sta.name) + 2)
+        ELSE sta.name
+    END AS first_name,
+    CASE
+        WHEN POSITION(',' IN sta.name) > 0 THEN SUBSTRING(sta.name FROM 1 FOR POSITION(',' IN sta.name) - 1)
+        ELSE NULL
+    END AS last_name,
+    COALESCE(sta.yearofBirth, NULL) AS dob,
+    n.nationality_id,
+    NULL AS phone,
+    NULL AS email
+FROM
+    staging_table_artist sta
+LEFT JOIN
+    nationality n ON SPLIT_PART(sta.placeofBirth, ',', 2) = n.nationality;
+	
+
+-- Insert data into the person from employee table using the sequence
+INSERT INTO person (person_id, first_name, last_name)
+SELECT
+    NEXTVAL('person_id_sequence'),
+    first_nm AS first_name,
+    last_nm AS last_name
+FROM stg_empl_tb;
+
+-- Select all rows from the person table to verify the data
+SELECT * FROM person;
+
+--artist table
+
+CREATE SEQUENCE artist_id_sequence
+START WITH 1
+INCREMENT BY 1
+NO MINVALUE
+NO MAXVALUE
+CACHE 1;
+
+INSERT INTO artist (artist_id, person_id)
+SELECT NEXTVAL('artist_id_sequence'), p.person_id
+FROM person p
+JOIN staging_table_artist s ON CONCAT(p.last_name, ', ', p.first_name) = s.name;
+
+SELECT * FROM artist;
+
+--customer table
+
+CREATE SEQUENCE customer_id_sequence
+START WITH 1
+INCREMENT BY 1
+NO MINVALUE
+NO MAXVALUE
+CACHE 1;
+
+INSERT INTO customer (customer_id, person_id, address_id)
+SELECT NEXTVAL('customer_id_sequence'), p.person_id, a.address_id
+FROM (
+    SELECT DISTINCT person_id, RANDOM() AS rnd
+    FROM person
+    WHERE person_id BETWEEN 1500 AND 2500
+    ORDER BY rnd LIMIT 25
+) p
+CROSS JOIN LATERAL (
+    SELECT address_id
+    FROM address
+    WHERE NOT EXISTS (
+        SELECT 1
+        FROM customer c
+        WHERE c.person_id = p.person_id AND c.address_id = address.address_id
+    )
+    ORDER BY RANDOM() LIMIT 1
+) a;
+
+SELECT * FROM customer;
+
+---art_type table
+
+CREATE SEQUENCE IF NOT EXISTS art_type_id_sequence;
+
+INSERT INTO art_type (art_type_id, art_type_name)
+SELECT DISTINCT
+    NEXTVAL('art_type_id_sequence'), 
+    medium AS art_type_name
+FROM
+    staging_tb_art_work
+WHERE medium IS NOT NULL
+GROUP BY
+    medium;
+	
+SELECT * FROM art_type;
+
+---art_work_table
+
+CREATE SEQUENCE IF NOT EXISTS art_work_id_sequence;
+
+-- Insert data into art_work table
+WITH ArtistNames AS (
+    SELECT 
+        p.person_id,
+        CONCAT(p.last_name, ', ', p.first_name) AS full_name
+    FROM 
+        person p
+    JOIN 
+        artist a ON p.person_id = a.person_id
+)
+INSERT INTO art_work (art_work_id, art_type_id, artist_id, gallery_id, title, yearofart, price, availability)
+SELECT
+    NEXTVAL('art_work_id_sequence'),
+    at.art_type_id,
+    a.artist_id,
+    (FLOOR(RANDOM() * 4000) + 1) AS gallery_id,
+    s.title,
+    s.year::DATE AS yearofart,
+    NULL AS price,
+    FALSE AS availability
+FROM 
+    staging_tb_art_work s
+JOIN 
+    ArtistNames an ON s.artist = an.full_name
+JOIN 
+    artist a ON an.person_id = a.person_id
+LEFT JOIN 
+    art_type at ON at.art_type_name = s.medium;
+	
+SELECT * FROM art_work;
+
+
+-- Insert data in EMPLOYEE table
+
+CREATE SEQUENCE IF NOT EXISTS employee_tb_id_seq;
+
+INSERT INTO employee_tb (employee_id, person_id, position_id, gallery_id, hire_date, salary_amount, applied_bonuses)
+SELECT
+    NEXTVAL('employee_id_seq'), 
+    p.person_id,
+    po.position_id,
+    (FLOOR(RANDOM() * 4000) + 1) AS gallery_id,
+    TO_DATE(ste.hired, 'YYYY')::DATE, 
+    ste.salary::INT, 
+    0.0 
+FROM 
+    person p
+JOIN 
+    stg_empl_tb ste ON CONCAT(p.last_name, ' ', p.first_name) = CONCAT(ste.last_nm, ' ', ste.first_nm)
+JOIN 
+    position_tb po ON ste.position_em = po.position_name
+
+SELECT * FROM employee_tb;
+
+---Insert data into position table
+CREATE SEQUENCE IF NOT EXISTS position_id_seq;
+
+INSERT INTO position_tb (position_id, position_name)
+SELECT DISTINCT ON (ste.position_em)
+    NEXTVAL('position_id_seq'),
+    ste.position_em
+FROM 
+    stg_empl_tb ste
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM position_tb pt
+    WHERE pt.position_name = ste.position_em
+);
+
+SELECT * FROM position_tb
+
+--exhibition table
+
+CREATE SEQUENCE IF NOT EXISTS exhibition_id_seq;
+
+INSERT INTO exhibition (exhibition_id, exhibition_name, gallery_id, start_date, end_date, is_free, ticket_cost)
+SELECT 
+    NEXTVAL('exhibition_id_seq'),
+    st_exhib.title,
+    (FLOOR(RANDOM() * 4000) + 1) AS gallery_id,
+    TO_DATE(st_exhib.start_date, 'MM/DD/YYYY') AS start_date,
+    TO_DATE(st_exhib.end_date, 'MM/DD/YYYY') AS end_date,
+    FALSE as is_free,
+    NULL as ticket_cost
+FROM 
+    staging_table_exhibition st_exhib;
+
+SELECT * FROM exhibition;
+
+---art_work_position table
+
+INSERT INTO artwork_position(artwork_position_id, position_name)
+VALUES 
+	(1, 'Wall'),
+	(2, 'Main Hall'),
+	(3, 'Gallery Room'),
+	(4, 'Entryway'),
+	(5, 'Feature Wall'),
+	(6, 'Corner')
+
+SELECT * FROM artwork_position;
+
+---EXHIBITION ART WORK BRIDGE TABLE
+CREATE SEQUENCE IF NOT EXISTS exhibition_artwork_id_seq;
+
+INSERT INTO exhibition_artwork (exhibition_artwork_id, art_work_id, exhibition_id, artwork_position_id)
+SELECT 
+    NEXTVAL('exhibition_artwork_id_seq'), 
+    aw.art_work_id,
+    e.exhibition_id,
+    (FLOOR(RANDOM() * 6) + 1) AS artwork_position_id
+FROM 
+    art_work aw
+JOIN 
+    exhibition e ON e.gallery_id = aw.gallery_id
+
+
+SELECT * FROM exhibition_artwork;
+
+
+---EVENT TYPE TABLE 
+CREATE SEQUENCE IF NOT EXISTS event_type_id_seq;
+
+INSERT INTO event_type (event_type_id, event_type_name)
+SELECT DISTINCT
+    NEXTVAL('event_type_id_seq'),
+    programm AS event_type_name
+FROM
+    staging_tb_events
+WHERE
+    programm IS NOT NULL
+GROUP BY
+    programm; 
+	
+SELECT * FROM event_type;
+
+---EVENT TABLE
+CREATE SEQUENCE IF NOT EXISTS event_tb_id_seq;
+
+INSERT INTO event_tb (event_tb_id, gallery_id, event_name, description, event_type_id, event_date)
+SELECT
+    NEXTVAL('event_tb_id_seq'), 
+        (FLOOR(RANDOM() * 4000) + 1) AS gallery_id, -- Randomly select a gallery_id
+    se.ev_title AS event_name,
+    se.ev_desc AS description,
+    et.event_type_id, 
+    se.dt_time AS event_date 
+FROM
+    staging_tb_events se
+JOIN
+    event_type et ON et.event_type_name = se.programm
+
+SELECT * FROM event_tb;
+
+---RESPONSIBLE STAFF BRIDGE TABLE
+CREATE SEQUENCE IF NOT EXISTS responsible_staff_id_seq;
+
+INSERT INTO responsible_staff (responsible_staff_id, event_tb_id, employee_id)
+SELECT 
+    NEXTVAL('responsible_staff_id_seq'), 
+    e.event_tb_id,
+    emp.employee_id
+FROM 
+    event_tb e
+JOIN 
+    employee_tb emp ON emp.gallery_id = e.gallery_id ;
+
+SELECT * FROM responsible_staff;
+
+---LOADING PAYMENT_METHOD TABLE
+
+INSERT INTO payment_method (payment_method_id, payment_method_name)
+VALUES
+    (1, 'Credit Card'),
+    (2, 'Debit Card'),
+    (3, 'PayPal'),
+    (4, 'Bank Transfer');
+
+---LOADING SALES TABLE
+CREATE SEQUENCE IF NOT EXISTS sales_id_seq;
+
+
+CREATE OR REPLACE FUNCTION get_random_sale_dates(p_num_dates INTEGER)
+RETURNS SETOF TIMESTAMP AS
+$$
+DECLARE
+    v_days_look_back INTEGER := 365; -- Number of days to look back (1 year)
+    v_interval INTERVAL;
+    v_result TIMESTAMP;
+    i INTEGER := 0;
+BEGIN
+    -- Create an interval for the past year
+    v_interval := make_interval(days => v_days_look_back);
+    
+    -- Generate multiple random dates within the past year
+    WHILE i < p_num_dates LOOP
+        v_result := CURRENT_DATE - INTERVAL '1 year' + (random() * v_interval);
+        RETURN NEXT v_result;
+        i := i + 1;
+    END LOOP;
+    
+    RETURN;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Generating 1000 random sales records
+
+INSERT INTO sales (sales_id, customer_id, art_work_id, sale_date, price_sl, total_price, payment_method_id)
+SELECT 
+    NEXTVAL('sales_id_seq'), 
+    c.customer_id, 
+    a.art_work_id, 
+    random_sale_date AS sale_date,
+    CAST(RANDOM() * 1000 AS NUMERIC(10, 2)) AS price_sl,
+    CAST(RANDOM() * 1000 * 1.0625 AS NUMERIC(10, 2)) AS total_price, 
+    FLOOR(RANDOM() * 4) + 1 AS payment_method_id 
+FROM 
+    (SELECT get_random_sale_dates(10) AS random_sale_date) AS random_dates,
+    (SELECT customer_id FROM customer ORDER BY RANDOM() LIMIT 10) AS c, 
+    (SELECT art_work_id FROM art_work ORDER BY RANDOM() LIMIT 10) AS a; 
+
+SELECT * FROM sales;
+
+---LOADING TRANSCATION TABLE
+CREATE SEQUENCE IF NOT EXISTS transaction_id_seq;
+
+
+INSERT INTO transaction (transaction_id, sales_id, transaction_date, amount)
+SELECT 
+    NEXTVAL('transaction_id_seq'), 
+    s.sales_id,
+    s.sale_date, -- Random transaction date within the past year
+    s.price_sl
+FROM 
+    sales s;
+	
+SELECT * FROM transaction;
+
+--- GENERATING SHIPPING TABLE BASED ON THE SALES TABLE
+CREATE SEQUENCE IF NOT EXISTS shipping_id_seq; 
+
+INSERT INTO shipping (shipping_id, sales_id, shipping_date, shipping_status_id)
+SELECT 
+    NEXTVAL('shipping_id_seq'), 
+    s.sales_id,
+    S.sale_date, -- Random shipping date within the past year
+    (FLOOR(RANDOM() * 4) + 1) 
+FROM 
+    sales s;
+
+SELECT * FROM shipping;
+
+---SHIPPING STATUS
+INSERT INTO shipping_status (shipping_status_id, shipping_status)
+VALUES 
+    (1, 'Pending'),
+    (2, 'In Transit'),
+    (3, 'Out for Delivery'),
+    (4, 'Delivered');
+
+SELECT * FROM shipping_status
+
+
+---LOADING DIMENSIONAL TABLES USING NORMALISED TABLES
+---galleryDIM
+
+CREATE TABLE galleryDIM (
+    galleryDim_id INT PRIMARY KEY,
+    name VARCHAR(256),
+    gallery_type VARCHAR(50),  
+    capacity INT,
+    email VARCHAR(40),
+    phone VARCHAR(24)
+);
+
+INSERT INTO galleryDIM (galleryDim_id, name, gallery_type, capacity, email, phone)
+SELECT
+    gallery_id AS galleryDim_id,
+    name,
+    gt.type_name AS gallery_type,
+    capacity,
+    email,
+    phone
+FROM
+    gallery g
+JOIN
+    gallery_type gt ON g.gallery_type_id = gt.gallery_type_id;
+
+SELECT * FROM galleryDIM;
+
+--addressDIM
+
+CREATE TABLE addressDIM (
+    addressDIM_id SERIAL PRIMARY KEY,
+    city VARCHAR(256) NOT NULL,
+    street_number INT,
+    street_name VARCHAR(256),
+    apt_number INT,
+    state VARCHAR(256),
+    zipcode VARCHAR(255)
+);
+
+INSERT INTO addressDIM (addressDIM_id, city, street_number, street_name, apt_number, state, zipcode)
+SELECT
+    address_id AS addressDIM_id,
+    city,
+    street_number,
+    street_name,
+    apartment_number AS apt_number,
+    state,
+    zipcode
+FROM
+    address;
+	
+SELECT * FROM addressDIM
+
+--  ARTWORK_DIM table
+
+CREATE TABLE ARTWORK_DIM (
+    artworkDim_id SERIAL PRIMARY KEY,
+    title VARCHAR(256) NOT NULL,
+    year DATE,
+    price DECIMAL(10,2),
+    start_date DATE,
+    end_date DATE,
+    current_flag BOOLEAN
+);
+
+-- Populate the initial data in ARTWORK_DIM
+--SCD type2
+INSERT INTO ARTWORK_DIM (title, year, price, start_date, end_date, current_flag)
+SELECT
+    title,
+    yearofart AS year,
+    price,
+    CURRENT_DATE AS start_date,  -- Assuming you start tracking from the current date
+    NULL AS end_date,  -- Initially, end_date is NULL
+    TRUE AS current_flag  -- Set current_flag to TRUE for the current version
+FROM
+    art_work;
+	
+SELECT * FROM ARTWORK_DIM
+where artworkDim_id = 43628
+
+
+ALTER TABLE ARTWORK_DIM
+ADD COLUMN random_code INTEGER;
+
+-- Update the table with random 6-digit codes for each ID
+UPDATE ARTWORK_DIM
+SET random_code = (abs((random() * 1000000)::int) % 900000) + 100000;
+
+--IMPLEMENTING SCD TYPE-2
+CREATE TABLE stg_artwork_dim (
+    artworkDim_id SERIAL PRIMARY KEY,
+    title VARCHAR(256),
+    year DATE,
+    price DECIMAL(10,2),
+    random_code INT  -- Added for matching records
+);
+
+
+INSERT INTO stg_artwork_dim (artworkDim_id, title, year, price, random_code)
+VALUES 
+    (43628, 'Stormy Sky', '1806-01-01', 100.00, 347349),
+    (70000, 'Somethin_new', '1816-01-01', 150.00, 789012);
+
+--creating temporary table
+CREATE TEMP TABLE artwork_changes AS
+SELECT
+    tgt.artworkDim_id AS artwork_id_new,
+    CASE
+        WHEN tgt.title <> stg.title THEN 'title'
+        WHEN tgt.year <> stg.year THEN 'year'
+        WHEN tgt.price <> stg.price THEN 'price'
+        ELSE ''
+    END AS price
+FROM
+    ARTWORK_DIM tgt
+JOIN
+    stg_artwork_dim stg ON tgt.random_code = stg.random_code
+WHERE
+    tgt.current_flag = TRUE;
+
+--Update old records in ARTWORK_DIM that have changes
+
+UPDATE ARTWORK_DIM AS tgt
+SET
+    current_flag = FALSE,
+    end_date = CURRENT_DATE
+FROM artwork_changes AS src
+WHERE
+    tgt.artworkDim_id = src.artwork_id_new
+    AND src.price <> '';
+
+
+INSERT INTO ARTWORK_DIM (title, year, price, random_code, start_date, end_date, current_flag)
+SELECT
+    stg.title,
+    stg.year,
+    stg.price,
+    stg.random_code,
+    CURRENT_DATE AS start_date,
+    NULL AS end_date,
+    TRUE AS current_flag
+FROM
+    stg_artwork_dim stg
+JOIN
+    artwork_changes src ON stg.random_code = src.random_code
+WHERE
+    src.price <> '';
+
+
+
+
+
+
+
+
+--artist_dim
+
+CREATE TABLE ARTIST_DIM (
+    artist_dim_id SERIAL PRIMARY KEY,
+    name VARCHAR(256) NOT NULL,
+    dob VARCHAR(256),
+    nationality VARCHAR(256)
+);
+
+INSERT INTO ARTIST_DIM (name, dob, nationality)
+SELECT
+    CONCAT(p.first_name, ' ', p.last_name) AS name,
+    p.dob AS DOB,
+    n.nationality AS nationality
+FROM
+    Artist a
+JOIN
+    Person p ON a.person_id = p.person_id
+JOIN
+    Nationality n ON p.nationality_id = n.nationality_id;
+
+SELECT * FROM ARTIST_DIM;
+
+--event_type DIM
+
+CREATE TABLE EVENT_TYPE_DIM (
+    eventDIM_id SERIAL PRIMARY KEY,
+    event_type_name VARCHAR(256) NOT NULL
+);
+
+INSERT INTO EVENT_TYPE_DIM (event_type_name)
+SELECT
+    event_type_name
+FROM
+    event_type;
+
+SELECT * FROM EVENT_TYPE_DIM;
+
+--art_type DIM
+CREATE TABLE ART_WORK_TYPE_DIM (
+    ARTWORK_TYPE_ID INT PRIMARY KEY,
+    ARTWORK_TYPE_NAME VARCHAR(256) NOT NULL
+);
+
+INSERT INTO ART_WORK_TYPE_DIM (ARTWORK_TYPE_ID, ARTWORK_TYPE_NAME)
+SELECT
+    art_type_id,
+    art_type_name
+FROM
+    art_type;
+
+SELECT * FROM ART_WORK_TYPE_DIM;
+
+CREATE TABLE DATE_DIM (
+    date_dim_id SERIAL PRIMARY KEY,
+    date DATE,
+    date_year INT,
+    date_month INT,
+    date_day INT
+);
+
+INSERT INTO DATE_DIM (date, date_year, date_month, date_day)
+SELECT
+    calendar_date AS date,
+    EXTRACT(YEAR FROM calendar_date) AS date_year,
+    EXTRACT(MONTH FROM calendar_date) AS date_month,
+    EXTRACT(DAY FROM calendar_date) AS date_day
+FROM
+    generate_series('2022-01-01'::date, '2024-12-31'::date, '1 day'::interval) AS calendar_date;
+
+SELECT * FROM DATE_DIM
+
+-- Create the exhibition_fact table with foreign key constraints
+CREATE TABLE exhibition_fact (
+    exhibition_fact_id SERIAL PRIMARY KEY,
+    galleryDIM_id INT,
+    addressdim_id INT,
+    dateDim_id INT,
+    artworkDIM_id INT,
+    artist_DIM_id INT,
+    duration INT,
+    attendent_count INT,
+    revenue DECIMAL(10,2),
+    FOREIGN KEY (galleryDIM_id) REFERENCES galleryDIM(galleryDim_id),
+    FOREIGN KEY (addressDIM_id) REFERENCES addressdim(addressDIM_id),
+    FOREIGN KEY (dateDim_id) REFERENCES DATE_DIM(date_dim_id),
+    FOREIGN KEY (artworkDIM_id) REFERENCES artwork_DIM(artworkDim_id),
+    FOREIGN KEY (artist_DIM_id) REFERENCES artist_DIM(artist_dim_id)
+);
+SELECT * FROM exhibition_fact;
+
+SELECT artist_DIM_id FROM artist_DIM;
+
+-- Insert sample data into the exhibition_fact table
+
+INSERT INTO exhibition_fact (
+    galleryDIM_id, 
+    addressdim_id, 
+    dateDim_id, 
+    artworkDIM_id, 
+    artist_DIM_id, 
+    duration, 
+    attendent_count, 
+    revenue
+) 
+SELECT
+    floor(random() * (7349 - 1 + 1) + 1)::INT AS galleryDIM_id,
+    floor(random() * (7349 - 1 + 1) + 1)::INT AS address_dim_id,
+    floor(random() * (1096 - 1 + 1) + 1)::INT AS dateDim_id,
+    floor(random() * (80178 - 39849 + 1) + 39849)::INT AS artworkDIM_id,
+    floor(random() * (3700 - 293 + 1) + 293)::INT AS artistDIM_id,
+    floor(random() * (10 - 1 + 1) + 1)::INT AS duration,  -- Random duration between 1 and 10 days
+    floor(random() * (100 - 50 + 1) + 50)::INT AS attendent_count,  -- Random attendent count between 50 and 100
+    CAST(random() * (2000 - 500) + 500 AS NUMERIC(10,2)) AS revenue  -- Random revenue between 500 and 2000, rounded to 2 decimal places
+FROM generate_series(1, 100);  -- Generates 100 rows
+
+SELECT * FROM exhibition_fact
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
